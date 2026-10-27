@@ -1,18 +1,33 @@
+using System.Runtime.InteropServices;
 using Microsoft.EntityFrameworkCore;
 using TripPilot.Data;
-using TripPilot.Services;
 using TripPilot.Models;
+using TripPilot.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// 1. Add MVC Controllers, Views, and Services
 builder.Services.AddControllersWithViews();
 builder.Services.AddScoped<ITripAnalyticsService, TripAnalyticsService>();
 
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+// 2. Cross-Platform Database: Use SQLite on Linux/Render, SQL Server on Windows
+var isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+var dbProvider = builder.Configuration["DatabaseProvider"];
+
+if (!isWindows || string.Equals(dbProvider, "Sqlite", StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddDbContext<ApplicationDbContext>(options =>
+        options.UseSqlite("Data Source=TripPilot.db"));
+}
+else
+{
+    builder.Services.AddDbContext<ApplicationDbContext>(options =>
+        options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+}
 
 var app = builder.Build();
 
+// 3. Ensure database is created and seed initial road trip
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
@@ -132,7 +147,6 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
-app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();
 app.UseAuthorization();
