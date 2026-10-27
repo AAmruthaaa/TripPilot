@@ -1,0 +1,143 @@
+﻿@model TripPilot.Models.Trip
+@{
+    ViewData["Title"] = "Vehicle & Fuel Range Calculator";
+    var trips = ViewBag.Trips as List<TripPilot.Models.Trip> ?? new List<TripPilot.Models.Trip>();
+    var vehicle = Model?.Vehicle ?? new TripPilot.Models.VehicleProfile();
+    var distance = Model?.TotalDistanceKm ?? 300;
+}
+
+<div class="container mt-4">
+    <div class="row g-4">
+        <div class="col-lg-7">
+            <div class="tp-card p-4 p-md-5">
+                <span class="badge bg-warning text-dark mb-2">Interactive Fuel &amp; Range Estimator</span>
+                <h2 class="fw-bold mb-2"><i class="bi bi-fuel-pump-fill text-primary me-2"></i>Vehicle &amp; Fuel Calculator</h2>
+                <p class="text-muted small mb-4">
+                    <i class="bi bi-info-circle me-1"></i>Fuel parameters (mileage, tank capacity, current fuel level) are manually entered unless a supported vehicle telematics integration is configured.
+                </p>
+
+                @if (trips.Any())
+                {
+                    <form method="get" asp-action="Calculator" class="mb-4 p-3 bg-light rounded-3 border">
+                        <label class="form-label small fw-bold mb-1">Load Vehicle Settings from a Saved Trip:</label>
+                        <div class="d-flex gap-2">
+                            <select name="tripId" class="form-select form-select-sm">
+                                @foreach (var t in trips)
+                                {
+                                    <option value="@t.Id" selected="@(Model != null && t.Id == Model.Id)">
+                                        @t.Title (@t.TotalDistanceKm km — @(t.Vehicle?.VehicleName ?? "Default Vehicle"))
+                                    </option>
+                                }
+                            </select>
+                            <button type="submit" class="btn btn-primary btn-sm px-3">Load</button>
+                        </div>
+                    </form>
+                }
+
+                <div class="row g-3" id="liveCalcForm">
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Planned Route Distance (km)</label>
+                        <input type="number" id="calcDistance" class="form-control" value="@distance" step="1" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Vehicle Mileage (km/L)</label>
+                        <input type="number" id="calcMileage" class="form-control" value="@vehicle.MileageKmPerLiter" step="0.5" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Tank Capacity (Liters)</label>
+                        <input type="number" id="calcTank" class="form-control" value="@vehicle.TankCapacityLiters" step="1" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Current Fuel Level (Liters)</label>
+                        <input type="number" id="calcCurrentFuel" class="form-control" value="@vehicle.CurrentFuelLiters" step="0.5" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Fuel Price (₹ / Liter)</label>
+                        <input type="number" id="calcPrice" class="form-control" value="@vehicle.FuelPricePerLiter" step="0.5" />
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-5">
+            <div class="tp-card p-4 h-100 bg-dark text-white border-0">
+                <h4 class="fw-bold mb-3"><i class="bi bi-speedometer2 text-warning me-2"></i>Live Calculation Output</h4>
+
+                <div id="calcAlertBox" class="alert alert-warning text-dark small mb-4">
+                    Checking fuel range safety...
+                </div>
+
+                <div class="row g-3">
+                    <div class="col-6">
+                        <div class="p-3 rounded-3 bg-white bg-opacity-10">
+                            <div class="small text-white-50">Current Fuel Range</div>
+                            <div class="fs-3 fw-bold text-info" id="outCurrentRange">0 km</div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="p-3 rounded-3 bg-white bg-opacity-10">
+                            <div class="small text-white-50">Full Tank Max Range</div>
+                            <div class="fs-3 fw-bold" id="outFullRange">0 km</div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="p-3 rounded-3 bg-white bg-opacity-10">
+                            <div class="small text-white-50">Fuel Needed for Trip</div>
+                            <div class="fs-3 fw-bold text-warning" id="outFuelNeeded">0 L</div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="p-3 rounded-3 bg-white bg-opacity-10">
+                            <div class="small text-white-50">Est. Trip Fuel Cost</div>
+                            <div class="fs-3 fw-bold text-success" id="outFuelCost">₹0</div>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <div class="p-3 rounded-3 bg-white bg-opacity-10 d-flex justify-content-between align-items-center">
+                            <span class="text-white-50">Remaining Fuel After Route:</span>
+                            <span class="fs-5 fw-bold" id="outRemainingFuel">0 L</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function updateFuelCalculator() {
+            const dist = parseFloat(document.getElementById('calcDistance').value) || 0;
+            const mileage = Math.max(0.1, parseFloat(document.getElementById('calcMileage').value) || 1);
+            const tank = parseFloat(document.getElementById('calcTank').value) || 0;
+            const currentFuel = parseFloat(document.getElementById('calcCurrentFuel').value) || 0;
+            const price = parseFloat(document.getElementById('calcPrice').value) || 0;
+
+            const currentRange = (currentFuel * mileage).toFixed(1);
+            const fullRange = (tank * mileage).toFixed(1);
+            const fuelNeeded = (dist / mileage).toFixed(2);
+            const remainingFuel = (currentFuel - (dist / mileage)).toFixed(2);
+            const cost = Math.round((dist / mileage) * price);
+
+            document.getElementById('outCurrentRange').innerText = currentRange + ' km';
+            document.getElementById('outFullRange').innerText = fullRange + ' km';
+            document.getElementById('outFuelNeeded').innerText = fuelNeeded + ' L';
+            document.getElementById('outFuelCost').innerText = '₹' + cost.toLocaleString('en-IN');
+            document.getElementById('outRemainingFuel').innerText = remainingFuel + ' L';
+
+            const alertBox = document.getElementById('calcAlertBox');
+            if (parseFloat(currentRange) < (dist + 40)) {
+                alertBox.className = 'alert alert-danger small mb-4';
+                alertBox.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-1"></i><strong>Refuel Stop Required!</strong> Your current fuel range (' + currentRange + ' km) is below the route distance (' + dist + ' km) plus a 40 km highway safety buffer.';
+            } else {
+                alertBox.className = 'alert alert-success small mb-4';
+                alertBox.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i><strong>Fuel Range Sufficient!</strong> Your current fuel covers the entire route with ' + remainingFuel + ' L to spare.';
+            }
+        }
+
+        document.querySelectorAll('#liveCalcForm input').forEach(el => {
+            el.addEventListener('input', updateFuelCalculator);
+        });
+        updateFuelCalculator();
+    </script>
+}

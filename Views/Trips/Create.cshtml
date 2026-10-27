@@ -1,0 +1,150 @@
+﻿@model TripPilot.Models.Trip
+@{
+    ViewData["Title"] = "Plan a New Road Trip";
+}
+
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-9">
+            <div class="tp-card p-4 p-md-5">
+                <h2 class="fw-bold mb-1"><i class="bi bi-compass-fill text-primary me-2"></i>Plan a New Road Trip</h2>
+                <p class="text-muted mb-4">Enter your route details and initial vehicle fuel settings. You can auto-calculate the route distance or enter it manually.</p>
+
+                <form asp-action="Create" method="post">
+                    <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-3">
+                        <h5 class="fw-bold text-primary mb-0">1. Route &amp; Schedule</h5>
+                        <button type="button" id="btnAutoRoute" class="btn btn-sm btn-outline-primary fw-semibold">
+                            <i class="bi bi-magic me-1"></i>Auto-Calculate Live Distance &amp; Hours
+                        </button>
+                    </div>
+                    <div id="autoRouteStatus" class="small text-muted mb-2 d-none"></div>
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-12">
+                            <label asp-for="Title" class="form-label fw-semibold"></label>
+                            <input asp-for="Title" class="form-control" placeholder="e.g., Weekend Drive from Hyderabad to Srisailam" required />
+                            <span asp-validation-for="Title" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="StartLocation" class="form-label fw-semibold"></label>
+                            <input asp-for="StartLocation" id="startLocInput" class="form-control" placeholder="e.g., Hyderabad, Telangana" required />
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="Destination" class="form-label fw-semibold"></label>
+                            <input asp-for="Destination" id="destLocInput" class="form-control" placeholder="e.g., Srisailam, Andhra Pradesh" required />
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="DepartureDate" class="form-label fw-semibold"></label>
+                            <input asp-for="DepartureDate" type="date" class="form-control" required />
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="ReturnDate" class="form-label fw-semibold"></label>
+                            <input asp-for="ReturnDate" type="date" class="form-control" required />
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="TotalDistanceKm" class="form-label fw-semibold"></label>
+                            <input asp-for="TotalDistanceKm" id="distInput" type="number" step="0.1" class="form-control" required />
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="EstimatedDurationHours" class="form-label fw-semibold"></label>
+                            <input asp-for="EstimatedDurationHours" id="hoursInput" type="number" step="0.1" class="form-control" required />
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="OverallBudget" class="form-label fw-semibold">Overall Budget (₹)</label>
+                            <input asp-for="OverallBudget" type="number" step="100" class="form-control" required />
+                        </div>
+                        <div class="col-12">
+                            <label asp-for="Notes" class="form-label fw-semibold"></label>
+                            <textarea asp-for="Notes" class="form-control" rows="2" placeholder="Highway preferences, rest notes..."></textarea>
+                        </div>
+                    </div>
+
+                    <h5 class="fw-bold text-primary border-bottom pb-2 mb-3">
+                        2. Vehicle &amp; Manual Fuel Profile
+                        <small class="text-muted fw-normal fs-6 d-block mt-1">
+                            <i class="bi bi-info-circle me-1"></i>Fuel data is manually entered unless a supported OBD/vehicle telematics integration is connected.
+                        </small>
+                    </h5>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Vehicle Name / Model</label>
+                            <input name="vehicle.VehicleName" value="@Model.Vehicle?.VehicleName" class="form-control" required />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Vehicle Type</label>
+                            <select name="vehicle.VehicleType" class="form-select" asp-items="Html.GetEnumSelectList<TripPilot.Models.VehicleType>()"></select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Fuel Type</label>
+                            <select name="vehicle.FuelType" class="form-select" asp-items="Html.GetEnumSelectList<TripPilot.Models.FuelType>()"></select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-semibold">Mileage (km/L or kWh)</label>
+                            <input name="vehicle.MileageKmPerLiter" type="number" step="0.1" value="@Model.Vehicle?.MileageKmPerLiter" class="form-control" required />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-semibold">Tank / Battery (L/kWh)</label>
+                            <input name="vehicle.TankCapacityLiters" type="number" step="0.5" value="@Model.Vehicle?.TankCapacityLiters" class="form-control" required />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-semibold">Current Fuel (L/kWh)</label>
+                            <input name="vehicle.CurrentFuelLiters" type="number" step="0.5" value="@Model.Vehicle?.CurrentFuelLiters" class="form-control" required />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-semibold">Fuel Price (₹/Unit)</label>
+                            <input name="vehicle.FuelPricePerLiter" type="number" step="0.1" value="@Model.Vehicle?.FuelPricePerLiter" class="form-control" required />
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-2">
+                        <a asp-controller="Home" asp-action="Index" class="btn btn-outline-secondary px-4">Cancel</a>
+                        <button type="submit" class="btn btn-primary fw-bold px-4">
+                            <i class="bi bi-check2-circle me-1"></i>Save Trip &amp; Open Workspace
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.getElementById('btnAutoRoute').addEventListener('click', async function () {
+            const start = document.getElementById('startLocInput').value.trim();
+            const dest = document.getElementById('destLocInput').value.trim();
+            const statusBox = document.getElementById('autoRouteStatus');
+            statusBox.classList.remove('d-none');
+
+            if (!start || !dest) {
+                statusBox.innerHTML = '<span class="text-danger"><i class="bi bi-exclamation-circle me-1"></i>Please enter both Starting Location and Final Destination first.</span>';
+                return;
+            }
+
+            statusBox.innerHTML = '<span class="text-primary"><span class="spinner-border spinner-border-sm me-1"></span>Calculating live driving distance and duration via OpenStreetMap OSRM...</span>';
+
+            try {
+                const g1 = await (await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(start)}`)).json();
+                const g2 = await (await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(dest)}`)).json();
+
+                if (!g1.length || !g2.length) {
+                    statusBox.innerHTML = '<span class="text-warning">Could not locate one of those cities on OpenStreetMap. Please check spelling.</span>';
+                    return;
+                }
+
+                const routeRes = await fetch(`https://router.project-osrm.org/route/v1/driving/${g1[0].lon},${g1[0].lat};${g2[0].lon},${g2[0].lat}?overview=false`);
+                const routeData = await routeRes.json();
+
+                if (routeData.routes && routeData.routes.length > 0) {
+                    const distKm = Math.round(routeData.routes[0].distance / 1000);
+                    const hrs = (routeData.routes[0].duration / 3600).toFixed(1);
+                    document.getElementById('distInput').value = distKm;
+                    document.getElementById('hoursInput').value = hrs;
+                    statusBox.innerHTML = `<span class="text-success fw-semibold"><i class="bi bi-check-circle-fill me-1"></i>Auto-filled live highway route: ${distKm} km (~${hrs} hours driving time)!</span>`;
+                }
+            } catch (e) {
+                statusBox.innerHTML = '<span class="text-danger">Unable to reach routing server right now. You can enter distance manually.</span>';
+            }
+        });
+    </script>
+}

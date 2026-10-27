@@ -1,0 +1,215 @@
+﻿@model IEnumerable<TripPilot.Models.Trip>
+@{
+    ViewData["Title"] = "Smart Travel Dashboard";
+    var totalTrips = Model.Count();
+    var totalDistance = Model.Sum(t => t.TotalDistanceKm);
+    var totalStops = Model.Sum(t => t.Stops.Count);
+    var totalBudget = Model.Sum(t => t.OverallBudget);
+}
+
+<!-- Hero Section -->
+<section class="tp-hero shadow">
+    <div class="container">
+        <div class="row align-items-center g-4">
+            <div class="col-lg-7">
+                <span class="badge bg-warning text-dark fw-semibold mb-3 px-3 py-2 rounded-pill">
+                    <i class="bi bi-stars me-1"></i>All-in-One Road Trip &amp; Route Companion
+                </span>
+                <h1 class="display-5 fw-bold mb-3">Plan Smarter Road Trips, Fuel Stops &amp; Itineraries</h1>
+                <p class="lead text-white-50 mb-4">
+                    Calculate vehicle fuel range and costs, organize multi-stop routes, discover highway stops,
+                    monitor travel alerts, and track your trip budget in one unified workspace.
+                </p>
+                <div class="d-flex flex-wrap gap-3">
+                    <a asp-controller="Trips" asp-action="Create" class="btn btn-warning btn-lg fw-bold px-4 shadow-sm">
+                        <i class="bi bi-plus-circle-fill me-2"></i>Create New Trip
+                    </a>
+                    <a asp-controller="Trips" asp-action="Calculator" class="btn btn-outline-light btn-lg px-4">
+                        <i class="bi bi-fuel-pump me-2"></i>Vehicle &amp; Fuel Calculator
+                    </a>
+                </div>
+            </div>
+            <div class="col-lg-5">
+                <div class="p-4 rounded-4 bg-white bg-opacity-10 border border-light border-opacity-25 backdrop-blur">
+                    <h5 class="fw-bold mb-3"><i class="bi bi-lightning-charge-fill text-warning me-2"></i>Quick Modules</h5>
+                    <div class="row g-2 text-start">
+                        <div class="col-6">
+                            <a asp-controller="Trips" asp-action="Index" class="btn btn-dark bg-opacity-50 w-100 text-start py-3 border-0">
+                                <i class="bi bi-map-fill text-info fs-5 d-block mb-1"></i>
+                                <span class="fw-semibold d-block">Multi-Stop Trips</span>
+                                <small class="text-white-50">Reorder &amp; manage routes</small>
+                            </a>
+                        </div>
+                        <div class="col-6">
+                            <a asp-controller="Trips" asp-action="Calculator" class="btn btn-dark bg-opacity-50 w-100 text-start py-3 border-0">
+                                <i class="bi bi-fuel-pump-fill text-warning fs-5 d-block mb-1"></i>
+                                <span class="fw-semibold d-block">Fuel Range Check</span>
+                                <small class="text-white-50">Mileage &amp; low-fuel warnings</small>
+                            </a>
+                        </div>
+                        <div class="col-6">
+                            <a asp-controller="Trips" asp-action="Discover" class="btn btn-dark bg-opacity-50 w-100 text-start py-3 border-0">
+                                <i class="bi bi-cup-hot-fill text-success fs-5 d-block mb-1"></i>
+                                <span class="fw-semibold d-block">Places Discovery</span>
+                                <small class="text-white-50">Fuel, dhabas, hotels, sights</small>
+                            </a>
+                        </div>
+                        <div class="col-6">
+                            <a asp-controller="Trips" asp-action="Alerts" class="btn btn-dark bg-opacity-50 w-100 text-start py-3 border-0">
+                                <i class="bi bi-cloud-lightning-rain-fill text-danger fs-5 d-block mb-1"></i>
+                                <span class="fw-semibold d-block">Travel Alerts</span>
+                                <small class="text-white-50">Live weather &amp; advisories</small>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<div class="container">
+    <!-- Top Summary Metrics -->
+    <div class="row g-3 mb-4">
+        <div class="col-sm-6 col-xl-3">
+            <div class="tp-card p-3 d-flex align-items-center">
+                <div class="tp-stat-icon bg-primary bg-opacity-10 text-primary me-3">
+                    <i class="bi bi-luggage-fill"></i>
+                </div>
+                <div>
+                    <div class="text-muted small fw-medium">Saved Road Trips</div>
+                    <div class="fs-4 fw-bold">@totalTrips</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-xl-3">
+            <div class="tp-card p-3 d-flex align-items-center">
+                <div class="tp-stat-icon bg-info bg-opacity-10 text-info me-3">
+                    <i class="bi bi-signpost-split-fill"></i>
+                </div>
+                <div>
+                    <div class="text-muted small fw-medium">Total Planned Distance</div>
+                    <div class="fs-4 fw-bold">@totalDistance.ToString("N0") km</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-xl-3">
+            <div class="tp-card p-3 d-flex align-items-center">
+                <div class="tp-stat-icon bg-success bg-opacity-10 text-success me-3">
+                    <i class="bi bi-geo-alt-fill"></i>
+                </div>
+                <div>
+                    <div class="text-muted small fw-medium">Planned Route Stops</div>
+                    <div class="fs-4 fw-bold">@totalStops Stops</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-xl-3">
+            <div class="tp-card p-3 d-flex align-items-center">
+                <div class="tp-stat-icon bg-warning bg-opacity-10 text-warning me-3">
+                    <i class="bi bi-wallet2"></i>
+                </div>
+                <div>
+                    <div class="text-muted small fw-medium">Combined Trip Budgets</div>
+                    <div class="fs-4 fw-bold">₹@totalBudget.ToString("N0")</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Active Trips Section -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h3 class="fw-bold mb-0">Your Planned Journeys</h3>
+            <p class="text-muted small mb-0">Select any trip to manage stops, fuel calculations, budget, checklists, or launch Journey Mode.</p>
+        </div>
+        <a asp-controller="Trips" asp-action="Create" class="btn btn-primary">
+            <i class="bi bi-plus-lg me-1"></i>New Trip
+        </a>
+    </div>
+
+    @if (!Model.Any())
+    {
+        <div class="tp-card p-5 text-center">
+            <i class="bi bi-compass display-4 text-primary mb-3 d-block"></i>
+            <h4 class="fw-bold">No trips planned yet</h4>
+            <p class="text-muted">Start by creating your first road trip itinerary.</p>
+            <a asp-controller="Trips" asp-action="Create" class="btn btn-primary px-4">Create Your First Trip</a>
+        </div>
+    }
+    else
+    {
+        <div class="row g-4">
+            @foreach (var trip in Model)
+            {
+                var fuelNeedsRefill = trip.Vehicle != null && trip.Vehicle.IsRefuelRequired(trip.TotalDistanceKm);
+                var completedTasks = trip.ChecklistItems.Count(c => c.IsCompleted);
+                var totalTasks = trip.ChecklistItems.Count;
+
+                <div class="col-lg-6">
+                    <div class="tp-card p-4 h-100 d-flex flex-column justify-content-between">
+                        <div>
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <span class="badge bg-primary-subtle text-primary fw-semibold px-3 py-1 rounded-pill">
+                                    <i class="bi bi-calendar-event me-1"></i>@trip.DepartureDate.ToString("dd MMM yyyy") – @trip.ReturnDate.ToString("dd MMM yyyy") (@trip.GetTripDurationDays() Days)
+                                </span>
+                                @if (fuelNeedsRefill)
+                                {
+                                    <span class="badge bg-danger-subtle text-danger fw-semibold px-2 py-1">
+                                        <i class="bi bi-fuel-pump-fill me-1"></i>Refuel Stop Needed
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-success-subtle text-success fw-semibold px-2 py-1">
+                                        <i class="bi bi-check-circle-fill me-1"></i>Fuel Range OK
+                                    </span>
+                                }
+                            </div>
+
+                            <h4 class="fw-bold mb-1">@trip.Title</h4>
+                            <p class="text-muted mb-3">
+                                <i class="bi bi-geo-fill text-primary me-1"></i><strong>@trip.StartLocation</strong>
+                                <i class="bi bi-arrow-right mx-2"></i>
+                                <i class="bi bi-flag-fill text-danger me-1"></i><strong>@trip.Destination</strong>
+                            </p>
+
+                            <div class="row g-2 bg-light rounded-3 p-3 mb-3 small">
+                                <div class="col-6 col-sm-3">
+                                    <div class="text-muted">Distance</div>
+                                    <div class="fw-bold">@trip.TotalDistanceKm km</div>
+                                </div>
+                                <div class="col-6 col-sm-3">
+                                    <div class="text-muted">Est. Drive</div>
+                                    <div class="fw-bold">@trip.EstimatedDurationHours hrs</div>
+                                </div>
+                                <div class="col-6 col-sm-3">
+                                    <div class="text-muted">Est. Fuel Cost</div>
+                                    <div class="fw-bold text-primary">
+                                        @(trip.Vehicle != null ? "₹" + trip.Vehicle.CalculateEstimatedFuelCost(trip.TotalDistanceKm).ToString("N0") : "N/A")
+                                    </div>
+                                </div>
+                                <div class="col-6 col-sm-3">
+                                    <div class="text-muted">Checklist</div>
+                                    <div class="fw-bold">@completedTasks / @totalTasks Done</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex flex-wrap gap-2 pt-2 border-top">
+                            <a asp-controller="Trips" asp-action="Details" asp-route-id="@trip.Id" class="btn btn-primary btn-sm px-3">
+                                <i class="bi bi-layout-text-window-reverse me-1"></i>Open Trip Workspace
+                            </a>
+                            <a asp-controller="Trips" asp-action="Journey" asp-route-id="@trip.Id" class="btn btn-dark btn-sm px-3">
+                                <i class="bi bi-Speedometer2 me-1"></i>Journey Mode
+                            </a>
+                            <a asp-controller="Trips" asp-action="Edit" asp-route-id="@trip.Id" class="btn btn-outline-secondary btn-sm">
+                                <i class="bi bi-pencil"></i> Edit
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>

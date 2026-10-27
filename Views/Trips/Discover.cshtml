@@ -1,0 +1,245 @@
+﻿@model TripPilot.Models.Trip
+@{
+    ViewData["Title"] = "Route & Places Discovery";
+    var trips = ViewBag.Trips as List<TripPilot.Models.Trip> ?? new List<TripPilot.Models.Trip>();
+    var startLoc = Model?.StartLocation ?? "Hyderabad, Telangana";
+    var destLoc = Model?.Destination ?? "Hampi, Karnataka";
+}
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+<div class="container mt-4">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-3 gap-2">
+        <div>
+            <h2 class="fw-bold mb-1"><i class="bi bi-geo-alt-fill text-primary me-2"></i>Route &amp; Places Discovery</h2>
+            <p class="text-muted small mb-0">
+                Powered by live OpenStreetMap, OSRM Route Directions &amp; Overpass Places API. Discover fuel stations, restaurants, tea/coffee shops, hotels, and attractions.
+            </p>
+        </div>
+
+        @if (trips.Any())
+        {
+            <form method="get" asp-action="Discover" class="d-flex gap-2">
+                <select name="tripId" class="form-select form-select-sm">
+                    @foreach (var t in trips)
+                    {
+                        <option value="@t.Id" selected="@(Model != null && t.Id == Model.Id)">
+                            @t.Title (@t.StartLocation → @t.Destination)
+                        </option>
+                    }
+                </select>
+                <button type="submit" class="btn btn-primary btn-sm px-3">Switch Trip</button>
+            </form>
+        }
+    </div>
+
+    <!-- Route Search & Category Filter Bar -->
+    <div class="tp-card p-3 mb-4">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label small fw-bold mb-1">Starting Location</label>
+                <input type="text" id="startInput" class="form-control form-control-sm" value="@startLoc" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small fw-bold mb-1">Destination / Search Area</label>
+                <input type="text" id="destInput" class="form-control form-control-sm" value="@destLoc" />
+            </div>
+            <div class="col-md-4 d-flex gap-2">
+                <button type="button" id="btnPlotRoute" class="btn btn-primary btn-sm w-100 fw-semibold">
+                    <i class="bi bi-sign-turn-right-fill me-1"></i>Calculate Live Route &amp; Map
+                </button>
+            </div>
+        </div>
+
+        <hr class="my-3" />
+
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+            <div class="d-flex flex-wrap gap-2">
+                <span class="small fw-bold text-muted align-self-center me-1">Find Places Near Destination:</span>
+                <button type="button" class="btn btn-sm btn-outline-danger poi-btn active" data-type="fuel" data-category="FuelStation">
+                    <i class="bi bi-fuel-pump-fill me-1"></i>Fuel Stations
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-success poi-btn" data-type="restaurant" data-category="Restaurant">
+                    <i class="bi bi-egg-fried me-1"></i>Restaurants
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-warning text-dark poi-btn" data-type="cafe" data-category="TeaCoffeeShop">
+                    <i class="bi bi-cup-hot-fill me-1"></i>Tea &amp; Coffee
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-primary poi-btn" data-type="hotel" data-category="Hotel">
+                    <i class="bi bi-building me-1"></i>Hotels &amp; Stays
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-info text-dark poi-btn" data-type="attraction" data-category="TouristAttraction">
+                    <i class="bi bi-camera-fill me-1"></i>Tourist Attractions
+                </button>
+            </div>
+            <div id="routeMetricsBadge" class="badge bg-dark px-3 py-2 fs-6">
+                Calculating route distance...
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- Interactive Leaflet Map -->
+        <div class="col-lg-7">
+            <div class="tp-card p-2">
+                <div id="tripMap" style="height: 480px; border-radius: 0.75rem;"></div>
+            </div>
+        </div>
+
+        <!-- Discovered Places List -->
+        <div class="col-lg-5">
+            <div class="tp-card p-4 h-100 d-flex flex-column">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="fw-bold mb-0"><i class="bi bi-pin-map-fill text-primary me-2"></i>Discovered Places</h5>
+                    <span class="badge bg-secondary" id="placesStatusBadge">Live OpenStreetMap Data</span>
+                </div>
+
+                <div id="placesContainer" class="overflow-auto pe-1" style="max-height: 410px;">
+                    <div class="text-center text-muted py-5">
+                        <div class="spinner-border text-primary mb-2" role="status"></div>
+                        <div>Searching live map for places...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        const tripId = @(Model?.Id ?? 0);
+        let map = L.map('tripMap').setView([16.5, 77.5], 7);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+
+        let routeLayer = null;
+        let markersLayer = L.layerGroup().addTo(map);
+        let currentDestCoords = { lat: 15.3350, lon: 76.4600 };
+        let currentRouteDistanceKm = @(Model?.TotalDistanceKm ?? 250);
+
+        async function geocodePlace(query) {
+            const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`;
+            const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
+            const data = await res.json();
+            if (data && data.length > 0) {
+                return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon), name: data[0].display_name };
+            }
+            return null;
+        }
+
+        async function plotLiveRoute() {
+            const startText = document.getElementById('startInput').value;
+            const destText = document.getElementById('destInput').value;
+            const badge = document.getElementById('routeMetricsBadge');
+            badge.innerText = 'Fetching live route via OSRM...';
+
+            try {
+                const startPt = await geocodePlace(startText);
+                const destPt = await geocodePlace(destText);
+                if (!startPt || !destPt) {
+                    badge.innerText = 'Could not geocode one of the locations.';
+                    return;
+                }
+
+                currentDestCoords = destPt;
+                const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${startPt.lon},${startPt.lat};${destPt.lon},${destPt.lat}?overview=full&geometries=geojson`;
+                const routeRes = await fetch(osrmUrl);
+                const routeData = await routeRes.json();
+
+                if (routeLayer) map.removeLayer(routeLayer);
+
+                if (routeData.routes && routeData.routes.length > 0) {
+                    const r = routeData.routes[0];
+                    currentRouteDistanceKm = Math.round(r.distance / 1000);
+                    const durationHrs = (r.duration / 3600).toFixed(1);
+                    badge.innerHTML = `<i class="bi bi-car-front-fill me-1 text-warning"></i>Live Route: ${currentRouteDistanceKm} km • Est. ${durationHrs} hrs`;
+
+                    routeLayer = L.geoJSON(r.geometry, {
+                        style: { color: '#2563eb', weight: 5, opacity: 0.85 }
+                    }).addTo(map);
+                    map.fitBounds(routeLayer.getBounds(), { padding: [30, 30] });
+                }
+
+                // Load default category (fuel stations)
+                loadPlaces('fuel', 'FuelStation');
+            } catch (err) {
+                badge.innerText = 'Live routing service temporarily unreachable.';
+            }
+        }
+
+        async function loadPlaces(poiType, stopCategory) {
+            const container = document.getElementById('placesContainer');
+            container.innerHTML = `<div class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm text-primary me-2"></div>Loading live ${poiType} places from OpenStreetMap Overpass API...</div>`;
+            markersLayer.clearLayers();
+
+            let osmFilter = '["amenity"="fuel"]';
+            if (poiType === 'restaurant') osmFilter = '["amenity"="restaurant"]';
+            if (poiType === 'cafe') osmFilter = '["amenity"="cafe"]';
+            if (poiType === 'hotel') osmFilter = '["tourism"~"hotel|guest_house|resort"]';
+            if (poiType === 'attraction') osmFilter = '["tourism"~"attraction|museum|viewpoint"]';
+
+            const query = `[out:json][timeout:15];(node${osmFilter}(around:25000,${currentDestCoords.lat},${currentDestCoords.lon});way${osmFilter}(around:25000,${currentDestCoords.lat},${currentDestCoords.lon}););out center 12;`;
+            const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
+
+            try {
+                const res = await fetch(url);
+                const data = await res.json();
+                const elements = (data.elements || []).filter(e => e.tags && e.tags.name);
+
+                if (elements.length === 0) {
+                    container.innerHTML = `<div class="alert alert-light border small">No named ${poiType} places returned within 25 km of destination on OpenStreetMap. Try switching category or searching a nearby city.</div>`;
+                    return;
+                }
+
+                container.innerHTML = '';
+                elements.slice(0, 10).forEach(el => {
+                    const lat = el.lat || (el.center && el.center.lat);
+                    const lon = el.lon || (el.center && el.center.lon);
+                    const name = el.tags.name;
+                    const brand = el.tags.brand || el.tags.cuisine || el.tags.tourism || poiType.toUpperCase();
+
+                    if (lat && lon) {
+                        L.marker([lat, lon]).addTo(markersLayer).bindPopup(`<strong>${name}</strong><br/><small>${brand}</small>`);
+                    }
+
+                    const card = document.createElement('div');
+                    card.className = 'p-3 mb-2 rounded-3 bg-light border d-flex justify-content-between align-items-center';
+                    card.innerHTML = `
+                                <div>
+                                    <div class="fw-bold">${name}</div>
+                                    <span class="badge bg-white text-dark border">${brand}</span>
+                                    <span class="text-muted small ms-1">(${lat.toFixed(3)}, ${lon.toFixed(3)})</span>
+                                </div>
+                                ${tripId > 0 ? `
+                                <form action="/Trips/AddStop" method="post" class="m-0">
+                                    <input name="__RequestVerificationToken" type="hidden" value="${document.querySelector('input[name=__RequestVerificationToken]')?.value || ''}" />
+                                    <input type="hidden" name="tripId" value="${tripId}" />
+                                    <input type="hidden" name="stopName" value="${name.replace(/"/g, '')}" />
+                                    <input type="hidden" name="category" value="${stopCategory}" />
+                                    <input type="hidden" name="distanceFromStartKm" value="${currentRouteDistanceKm}" />
+                                    <input type="hidden" name="notes" value="Added via TripPilot Places Discovery (OpenStreetMap)" />
+                                    <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg me-1"></i>Add Stop</button>
+                                </form>` : ''}
+                            `;
+                    container.appendChild(card);
+                });
+            } catch (e) {
+                container.innerHTML = `<div class="alert alert-warning small">Live Overpass Places API busy. Please click the category button again in a few seconds.</div>`;
+            }
+        }
+
+        document.getElementById('btnPlotRoute').addEventListener('click', plotLiveRoute);
+        document.querySelectorAll('.poi-btn').forEach(btn => {
+            btn.addEventListener('click', function () {
+                document.querySelectorAll('.poi-btn').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                loadPlaces(this.dataset.type, this.dataset.category);
+            });
+        });
+
+        plotLiveRoute();
+    </script>
+    @Html.AntiForgeryToken()
+}

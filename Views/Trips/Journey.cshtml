@@ -1,0 +1,159 @@
+﻿@model TripPilot.Models.Trip
+@{
+    ViewData["Title"] = "Journey Mode — " + Model.Title;
+    var vehicle = Model.Vehicle ?? new TripPilot.Models.VehicleProfile();
+    var currentRangeKm = vehicle.CalculateCurrentRangeKm();
+    var needsRefuel = vehicle.IsRefuelRequired(Model.TotalDistanceKm);
+    var pendingChecklist = Model.ChecklistItems.Where(c => !c.IsCompleted).ToList();
+}
+
+<div class="container mt-4">
+    <!-- High-Contrast Cockpit Banner -->
+    <div class="p-4 rounded-4 bg-dark text-white shadow mb-4 border-bottom border-4 border-warning">
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+            <div>
+                <span class="badge bg-warning text-dark fw-bold mb-2">
+                    <i class="bi bi-compass-fill me-1"></i>ACTIVE JOURNEY MODE COCKPIT
+                </span>
+                <h2 class="fw-bold mb-1">@Model.Title</h2>
+                <div class="fs-5 text-info">
+                    @Model.StartLocation <i class="bi bi-arrow-right mx-2"></i> @Model.Destination
+                </div>
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+                <button type="button" onclick="window.print()" class="btn btn-warning fw-semibold">
+                    <i class="bi bi-printer-fill me-1"></i>Print / Save PDF
+                </button>
+                <a asp-action="Details" asp-route-id="@Model.Id" class="btn btn-outline-light">
+                    <i class="bi bi-sliders me-1"></i>Back to Full Workspace
+                </a>
+                <a asp-action="Alerts" asp-route-tripId="@Model.Id" class="btn btn-danger">
+                    <i class="bi bi-cloud-lightning-rain me-1"></i>Live Weather &amp; Alerts
+                </a>
+            </div>
+        </div>
+
+        <div class="row g-3 mt-2 text-center">
+            <div class="col-6 col-md-3">
+                <div class="p-3 rounded-3 bg-white bg-opacity-10">
+                    <div class="small text-white-50">Total Route Distance</div>
+                    <div class="fs-3 fw-bold">@Model.TotalDistanceKm km</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="p-3 rounded-3 bg-white bg-opacity-10">
+                    <div class="small text-white-50">Est. Driving Time</div>
+                    <div class="fs-3 fw-bold">@Model.EstimatedDurationHours hrs</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="p-3 rounded-3 bg-white bg-opacity-10">
+                    <div class="small text-white-50">Current Fuel Range</div>
+                    <div class="fs-3 fw-bold @(needsRefuel ? "text-danger" : "text-success")">@currentRangeKm km</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="p-3 rounded-3 bg-white bg-opacity-10">
+                    <div class="small text-white-50">Remaining Budget</div>
+                    <div class="fs-3 fw-bold text-warning">₹@Model.GetRemainingBudget().ToString("N0")</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Active Driver Warnings -->
+    @if (needsRefuel)
+    {
+        <div class="alert alert-danger shadow-sm d-flex align-items-center p-3 mb-4">
+            <i class="bi bi-fuel-pump-fill fs-2 me-3"></i>
+            <div>
+                <h5 class="fw-bold mb-1">Refuel Alert Before @Math.Max(10, currentRangeKm - 40) km!</h5>
+                <div>Your @vehicle.VehicleName (@vehicle.CurrentFuelLiters L current fuel) has an estimated range of <strong>@currentRangeKm km</strong> for this <strong>@Model.TotalDistanceKm km</strong> journey. Stop at a fuel station along the route.</div>
+            </div>
+        </div>
+    }
+
+    <div class="row g-4">
+        <!-- Upcoming Route Stops Sequence -->
+        <div class="col-lg-8">
+            <div class="tp-card p-4">
+                <h4 class="fw-bold mb-3"><i class="bi bi-sign-turn-right-fill text-primary me-2"></i>Upcoming Itinerary Stops in Sequence</h4>
+
+                <div class="tp-timeline">
+                    <div class="tp-timeline-item p-3 rounded-3 bg-primary-subtle border border-primary-subtle mb-3">
+                        <span class="tp-timeline-dot bg-success">S</span>
+                        <div class="fw-bold">Start: @Model.StartLocation</div>
+                        <div class="small text-muted">0 km • Departure: @Model.DepartureDate.ToString("dd MMM yyyy")</div>
+                    </div>
+
+                    @foreach (var stop in Model.Stops.OrderBy(s => s.SequenceOrder))
+                    {
+                        <div class="tp-timeline-item p-3 rounded-3 bg-light border mb-3">
+                            <span class="tp-timeline-dot">@stop.SequenceOrder</span>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h5 class="fw-bold mb-1">@stop.StopName</h5>
+                                <span class="badge bg-dark">@stop.DistanceFromStartKm km mark</span>
+                            </div>
+                            <span class="badge bg-info text-dark mb-1">@stop.Category</span>
+                            @if (!string.IsNullOrWhiteSpace(stop.Notes))
+                            {
+                                <p class="small text-muted mb-0 mt-1">@stop.Notes</p>
+                            }
+                        </div>
+                    }
+
+                    <div class="tp-timeline-item p-3 rounded-3 bg-warning-subtle border border-warning-subtle">
+                        <span class="tp-timeline-dot bg-danger">F</span>
+                        <div class="fw-bold">Destination: @Model.Destination</div>
+                        <div class="small text-muted">@Model.TotalDistanceKm km • Target Return: @Model.ReturnDate.ToString("dd MMM yyyy")</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pre-Departure Pending Checklist & Vehicle Summary -->
+        <div class="col-lg-4">
+            <div class="tp-card p-4 mb-4">
+                <h5 class="fw-bold mb-3"><i class="bi bi-clipboard2-check-fill text-warning me-2"></i>Pending Pre-Trip Tasks</h5>
+                @if (!pendingChecklist.Any())
+                {
+                    <div class="alert alert-success small mb-0">
+                        <i class="bi bi-check-circle-fill me-1"></i>All packing &amp; readiness tasks are completed! You are ready to roll.
+                    </div>
+                }
+                else
+                {
+                    <ul class="list-group list-group-flush small">
+                        @foreach (var item in pendingChecklist)
+                        {
+                            <li class="list-group-item px-0 d-flex justify-content-between align-items-center">
+                                <span><i class="bi bi-exclamation-circle text-warning me-2"></i>@item.ItemName</span>
+                                <form asp-action="ToggleChecklistItem" method="post" class="m-0">
+                                    <input type="hidden" name="itemId" value="@item.Id" />
+                                    <button type="submit" class="btn btn-xs btn-outline-success btn-sm py-0 px-2">Done</button>
+                                </form>
+                            </li>
+                        }
+                    </ul>
+                }
+            </div>
+
+            <div class="tp-card p-4">
+                <h5 class="fw-bold mb-2"><i class="bi bi-car-front-fill text-primary me-2"></i>Active Vehicle Specs</h5>
+                <div class="small text-muted mb-2">@vehicle.GetSummaryLabel()</div>
+                <div class="d-flex justify-content-between small py-1 border-bottom">
+                    <span>Current Fuel in Tank:</span>
+                    <strong>@vehicle.CurrentFuelLiters L / @vehicle.TankCapacityLiters L</strong>
+                </div>
+                <div class="d-flex justify-content-between small py-1 border-bottom">
+                    <span>Required Trip Fuel:</span>
+                    <strong>@vehicle.CalculateRequiredFuelLiters(Model.TotalDistanceKm) L</strong>
+                </div>
+                <div class="d-flex justify-content-between small py-1">
+                    <span>Est. Trip Fuel Cost:</span>
+                    <strong class="text-success">₹@vehicle.CalculateEstimatedFuelCost(Model.TotalDistanceKm).ToString("N0")</strong>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
